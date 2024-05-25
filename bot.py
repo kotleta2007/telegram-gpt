@@ -1,9 +1,12 @@
 import logging
 from telegram import Update
+import telegram
 from telegram.ext import filters, MessageHandler, ApplicationBuilder, CommandHandler, ContextTypes
 import os
 from dotenv import load_dotenv
 from groq import Groq
+import re
+from chatgpt_md_converter import telegram_format
 
 load_dotenv()
 TELEGRAM_TOKEN = os.getenv('TELEGRAM_TOKEN')
@@ -19,16 +22,13 @@ logging.basicConfig(
 class Bot:
     def __init__(self) -> None:
         self.app = ApplicationBuilder().token(TELEGRAM_TOKEN).build()
-        self.conv = False
+        # self.conv = False
+        self.conv = True
         self.client = Groq(api_key=GROQ_API_KEY)
 
-        echo_handler = MessageHandler(filters.TEXT & (~filters.COMMAND), self.talk)
-        start_handler = CommandHandler('start', self.start)
-        switch_handler = CommandHandler('switch', self.switch)
-
-        self.app.add_handler(start_handler)
-        self.app.add_handler(echo_handler)
-        self.app.add_handler(switch_handler)
+        self.app.add_handler(MessageHandler(filters.TEXT & (~filters.COMMAND), self.talk))
+        self.app.add_handler(CommandHandler('start', self.start))
+        self.app.add_handler(CommandHandler('switch', self.switch))
         self.app.run_polling()
 
 
@@ -53,22 +53,54 @@ class Bot:
         assert update.message is not None and update.message.text is not None
 
         if self.conv:
-            text = "We are in a conversation."
+            # text = "We are in a conversation."
+            text = self.generate(update.message.text)
         else:
             text = "We are not in a conversation."
 
+
+        # text = re.sub(r'\.', r'\\.', text)
+        # text = re.sub(r'\!', r'\\!', text)
+        # text = re.sub(r'\-', r'\\-', text)
+
+        print(text)
+
+        # text = re.sub(r"\*\*", r"\*", text)
+        # text = re.sub(r"\*\*", r"*", text)
+        print(text)
+        to_be_escaped = ['_',
+                         '*',
+                         '[',
+                         ']',
+                         '(',
+                         ')',
+                         '~',
+                         '`',
+                         '>',
+                         '#',
+                         '+',
+                         '-',
+                         '=',
+                         '|',
+                         '{',
+                         '}',
+                         '.',
+                         '!']
+        for ch in to_be_escaped:
+            # text = re.sub(f"{ch}", f"\\{ch}", text)
+            pass
+            # text = re.sub(f"\\{ch}", f"\\\\{ch}", text)
+            # text = re.sub(ch, f"\\\\{ch}", text)
+        print(text)
+        # text = re.sub(r"\\\*\\\*", r"*", text)
+        print(text)
+        print("****")
+        print(telegram_format(text))
+
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text=text
-        )
-
-    async def echo(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        assert update.effective_chat is not None
-        assert update.message is not None and update.message.text is not None
-
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=update.message.text
+            text=telegram_format(text),
+            parse_mode=telegram.constants.ParseMode.HTML,
         )
 
     def generate(self, text, temperature=0.0,max_tokens=1024):
